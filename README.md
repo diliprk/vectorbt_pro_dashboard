@@ -1,2 +1,2 @@
-# vectorbt_pro_dashboard
-A Dashboard for multi-time frame simulation analysis for a portfolio of instruments
+# vectorBT Pro Dashboard
+A Dashboard made using `plotly-dash` for multi-time frame simulation analysis for a portfolio of instruments done using `vectorbtpro`
