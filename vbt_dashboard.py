@@ -1,11 +1,7 @@
  ## Load Libraries
-import time
 import numpy as np
 import pandas as pd
 import vectorbtpro as vbt
-import plotly.express as px
-import plotly.graph_objects as go
-from dateutil import parser
 from datetime import datetime, date
 import dash_bootstrap_components as dbc
 from dash import Dash, html, dcc, dash_table
@@ -14,7 +10,7 @@ from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
-resample_time_periods = ['15m',  '4h']
+resample_time_periods = ['15m', '4h']
 # mtf_data = vbt.Config.load('data/mtf_data.pickle') ## Multi Time-Frame data with entries and exits
 pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
 symbols = list(pf.trade_history['Column'].unique())
@@ -61,16 +57,10 @@ app.title = "VectorBT Dashboard"
 server = app.server
 app.config["suppress_callback_exceptions"] = True
 
-theme = {
-    'dark': True,
-    'detail': '#2d3038',  # Background-card
-    'primary': '#007439',  # Green
-    'secondary': '#FFD15F',  # Accent
-}
 
 ## Global VBT Plot Settings
 vbt.settings.set_theme("dark")
-vbt.settings['plotting']['layout']['width'] = 1280
+vbt.settings['plotting']['layout']['width'] = 1200
 
 def build_banner():
     return html.Div(
@@ -86,7 +76,7 @@ def build_banner():
             ),
             html.Div(
                 id="banner-logo",
-                children=[html.A(html.Img(id="logo",src=app.get_asset_url("vbt_logo.png")),href="https://vectorbt.pro"),
+                children=[html.A(html.Img(id="logo",src=app.get_asset_url("plotly_logo.png")),href="https://vectorbt.pro"),
                 ],
             ),
         ],
@@ -115,18 +105,25 @@ symbols_dropdown = html.Div([
                         value = sel_symbol, optionHeight = 25)
                         ])
 
-time_periods = html.Div([
+time_periods_tab1 = html.Div([
                         html.P('(Resample) Time period:',style={"font-weight":"bold"}),
+                        dcc.Dropdown(id = 'select-resample-dropdown',
+                        options = list({'label': period, 'value': period} for period in ['15m','4h', '1d']),
+                        style = {'width':'40%','text-align': 'left'},
+                        value = '1d', optionHeight = 25)
+                        ])       
+
+time_periods_tab2 = html.Div([
+                        html.P('Chart TimeFrame:',style={"font-weight":"bold"}),
                         dcc.Dropdown(id = 'select-resample-dropdown',
                         options = list({'label': period, 'value': period} for period in resample_time_periods),
                         style = {'width':'40%','text-align': 'left'},
                         value = sel_period, optionHeight = 25)
-                        ])       
+                        ])   
 
-
-def build_tab_1(symbols_dropdown, time_periods, sel_symbol, sel_period):
+def build_tab_1():
     return [
-        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods])],
+        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods_tab1])],
                     # style = {'display' : 'inline','align': 'right'} 
                     ),        
         html.Div(children = [
@@ -183,17 +180,23 @@ def main_chart(start_date, end_date, symbol, time_period):
     end_date_txt = datetime.strptime(end_date, '%Y-%m-%d').strftime("%b %d, %Y")
     start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y.%m.%d')
     end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y.%m.%d')
-
-    kwargs1 = {"title_text" : f"H4 OHLCV with BBands on Price for {symbol} from {start_date_txt} to {end_date_txt}", 
-               "title_font_size" : 18,
+    bb_line_style = dict(color="white",width=1, dash="dot")
+    kwargs1 = { "title_font_size" : 18,
                "height" : 720,
                "legend" : dict(yanchor="top",y=0.99, xanchor="left",x= 0.1)}
     
 
     # print("START DATE:", start_date, '||', "END DATE:", end_date)
-
-    df_ohlc = pd.concat([h4_open[symbol], h4_high[symbol], h4_low[symbol], h4_close[symbol] ], 
-                axis = 1, keys= ['Open', 'High', 'Low', 'Close'])
+    if time_period == '4h':
+        kwargs1["title_text"] = f"H4 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
+        df_ohlc = pd.concat([h4_open[symbol], h4_high[symbol], h4_low[symbol], h4_close[symbol] ], 
+                            axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
+        bb_bands = h4_bbands_price
+    elif time_period == '15m':
+        kwargs1["title_text"] = f"m15 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
+        df_ohlc = pd.concat([m15_open[symbol], m15_high[symbol], m15_low[symbol], m15_close[symbol] ], 
+                            axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
+        bb_bands = m15_bbands_price
     ## Filter Data according to date slice
     df_slice = df_ohlc[["Open", "High", "Low", "Close"]][start_date : end_date]
     ## Retrieve datetime index of rows where price data is NULL
@@ -207,11 +210,11 @@ def main_chart(start_date, end_date, symbol, time_period):
     fig =  df_slice.vbt.ohlcv.plot(**kwargs1) 
      ## Plots Long Entries / Exits and Short Entries / Exits
     pf[symbol][start_date:end_date].plot_trade_signals(fig=fig, plot_close=False, plot_positions="lines")
-    bb_line_style = dict(color="white",width=1, dash="dot")
-    h4_bbands_price[symbol].plot(fig=fig, **kwargs1 ,
-                lowerband_trace_kwargs=dict(fill=None, name = 'BB_Price_Lower', connectgaps=True, line = bb_line_style), 
-                upperband_trace_kwargs=dict(fill=None, name = 'BB_Price_Upper', connectgaps=True, line = bb_line_style),
-                middleband_trace_kwargs=dict(fill=None, name = 'BB_Price_Middle', connectgaps=True))    
+
+    # bb_bands[symbol].plot(fig=fig, **kwargs1 ,
+    #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_Price_Lower', connectgaps=True, line = bb_line_style), 
+    #             upperband_trace_kwargs=dict(fill=None, name = 'BB_Price_Upper', connectgaps=True, line = bb_line_style),
+    #             middleband_trace_kwargs=dict(fill=None, name = 'BB_Price_Middle', connectgaps=True))    
 
 
     
@@ -229,10 +232,10 @@ def rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits):
     bb_rsi = bb_rsi[start_date : end_date]
     fig = rsi.rename("RSI").vbt.plot(trace_kwargs = dict(connectgaps=True))
     bb_line_style = dict(color="white",width=1, dash="dot")
-    bb_rsi.plot(fig=fig,
-                lowerband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Lower', connectgaps=True,line = bb_line_style), 
-                upperband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Upper', connectgaps=True,line = bb_line_style),
-                middleband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Middle', connectgaps=True, visible = False))  
+    # bb_rsi.plot(fig=fig,
+    #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Lower', connectgaps=True,line = bb_line_style), 
+    #             upperband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Upper', connectgaps=True,line = bb_line_style),
+    #             middleband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Middle', connectgaps=True, visible = False))  
     
     if (entries is not None) & (exits is not None):
         ## Slice Entries and Exits
@@ -269,10 +272,10 @@ def contruct_rsi(start_date, end_date, symbol, time_period):
     rsi_title = f"RSI plot for {symbol} on {time_period} time period"
     return fig, rsi_title
 
-def build_tab_2(symbols_dropdown, time_periods):
+def build_tab_2(symbols_dropdown, time_periods_tab2):
     return [
-        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods])],
-            # style = {'display' : 'inline','align': 'right'} 
+        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods_tab2])],
+            style = {'display' : 'inline','align': 'right'} 
             ),
         html.Br(),
         date_picker_range,
@@ -293,11 +296,11 @@ def build_tab_2(symbols_dropdown, time_periods):
 )
 def render_tab_content(tab):
     if tab == "tab1":
-        return build_tab_1(symbols_dropdown, time_periods,
-                            sel_symbol, sel_period)
+        # return html.Div([html.P("Welcome to Tab1")])        
+        return build_tab_1()
     elif tab == "tab2":
         # return html.Div([html.P("Welcome to Tab2")])
-        return build_tab_2(symbols_dropdown, time_periods)
+        return build_tab_2(symbols_dropdown, time_periods_tab2)
 
 
 app.layout = html.Div(
