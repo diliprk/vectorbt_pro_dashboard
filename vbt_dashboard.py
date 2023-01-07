@@ -1,19 +1,16 @@
-## Load Libraries
+ ## Load Libraries
 import time
 import numpy as np
 import pandas as pd
-import dash_daq as daq
 import vectorbtpro as vbt
 import plotly.express as px
 import plotly.graph_objects as go
 from dateutil import parser
 from datetime import datetime, date
-from dash_iconify import DashIconify
-from dash_extensions import WebSocket
 import dash_bootstrap_components as dbc
 from dash import Dash, html, dcc, dash_table
 import dash.dash_table.FormatTemplate as FormatTemplate
-from dash.dependencies import Input, Output, ClientsideFunction
+from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
@@ -26,7 +23,7 @@ price_data = vbt.Config.load('data/price_data.pickle')
 vbt_indicators_data = vbt.Config.load('data/vbt_indicators_data.pickle')
 pandas_indicators_data = vbt.Config.load('data/pandas_indicator_data.pickle')
 entries_exits_data = vbt.Config.load('data/entries_exits_data.pickle')
-print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
+# print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
 
 
 ## Load data from pickle files 
@@ -139,31 +136,6 @@ def build_tab_1(symbols_dropdown, time_periods, sel_symbol, sel_period):
         ])
         ]
 
-    sel_symbol = symbols[0]
-    sel_period = time_periods[3]
-    symbols_dropdown = html.Div([
-                            html.P('Select Symbol:',style={"font-weight":"bold"}),
-                            dcc.Dropdown(id = 'select-symbol-dropdown',
-                            options = list({'label': symbol, 'value': symbol} for symbol in symbols),
-                            style = {'width':'40%','text-align': 'left'},
-                            value = sel_symbol, optionHeight = 25)
-                            ])
-    resampler_options = html.Div([
-                            html.P('(Resample) Time period:',style={"font-weight":"bold"}),
-                            dcc.Dropdown(id = 'select-resample-dropdown',
-                            options = list({'label': period, 'value': period} for period in time_periods),
-                            style = {'width':'40%','text-align': 'left'},
-                            value = sel_period, optionHeight = 25)
-                            ])
-    return [
-        # Manually select symbols
-        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([resampler_options])],
-                    # style = {'display' : 'inline','align': 'right'} 
-                    ),
-        html.Div(children = [dcc.Graph(id = 'pf-orders', figure = pf[sel_symbol].resample(sel_period).plot()),
-        dcc.Graph(id = 'drawdown-plot', figure =  pf[sel_symbol].drawdowns.plot(**{"title_text" : f"Drawdowns Plot for {sel_symbol}"}))
-        ])
-    ]
 # callback for Tab 1
 # ------------------------------------------------------------
 @app.callback(
@@ -340,7 +312,3 @@ app.layout = html.Div(
 # Run the App
 if __name__ == "__main__":
     app.run_server(port=8001,debug=True)
-
-
-
-
