@@ -10,16 +10,24 @@ from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
-resample_time_periods = ['15m', '4h']
-pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
-symbols = list(pf.trade_history['Column'].unique())
-
 price_data = vbt.Config.load('data/price_data.pickle')
 vbt_indicators_data = vbt.Config.load('data/vbt_indicators_data.pickle')
 pandas_indicators_data = vbt.Config.load('data/pandas_indicator_data.pickle')
 entries_exits_data = vbt.Config.load('data/entries_exits_data.pickle')
+pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
+symbols = list(pf.trade_history['Column'].unique())
 # print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
 
+stats_df = pd.concat([pf.stats()] + [pf[symbol].stats() for symbol in symbols], axis = 1)
+stats_df.loc['Avg Winning Trade Duration'] = [x.floor('s') for x in stats_df.iloc[21]]
+stats_df.loc['Avg Losing Trade Duration'] = [x.floor('s') for x in stats_df.iloc[22]]
+stats_df = stats_df.reset_index().astype(str)
+stats_df.rename(inplace = True, columns = {'agg_stats':'WholePortfolio','index' : 'Metrics'})      
+print(stats_df)
+
+resample_time_periods = ['15m', '4h']
+sel_symbol = symbols[0]
+sel_period = resample_time_periods[1]
 
 ## Load data from pickle files 
 ## m15_data
@@ -59,7 +67,7 @@ app.config["suppress_callback_exceptions"] = True
 
 ## Global VBT Plot Settings
 vbt.settings.set_theme("dark")
-vbt.settings['plotting']['layout']['width'] = 1280
+vbt.settings['plotting']['layout']['width'] = 1200
 
 def build_banner():
     return html.Div(
@@ -81,9 +89,10 @@ def build_banner():
         ],
     )
 
+
 def build_tabs():
     return html.Div(id="tabs", className="tabs", 
-    children=[dcc.Tabs(id="app-tabs",value="tab2",className="custom-tabs",
+    children=[dcc.Tabs(id="app-tabs",value="tab1",className="custom-tabs",
              children=[dcc.Tab(id="sim-res-tab", label="Portfolio Simulation", value="tab1",className="custom-tab",
                         selected_className="custom-tab--selected" ),
                        dcc.Tab(id="strategy-viz-tab", label="Strategy Visualizer", value="tab2", className="custom-tab",
@@ -93,8 +102,6 @@ def build_tabs():
         ],
     )
 
-sel_symbol = symbols[0]
-sel_period = resample_time_periods[1]
 
 symbols_dropdown = html.Div([
                         html.P('Select Symbol:',style={"font-weight":"bold"}),
@@ -120,16 +127,38 @@ time_periods_tab2 = html.Div([
                         value = sel_period, optionHeight = 25)
                         ])   
 
+
+## Simulation Performance Statistics
+stats_datatable = dash_table.DataTable(id='simulation_stats_table',
+                                    data = stats_df.to_dict(orient = 'records'),
+                                    columns =  [{'id': c, 'name': c} for c in stats_df.columns], 
+                                    fill_width=True,
+                                    style_as_list_view = True,                                    
+                                    style_table={'minWidth': '95%'},
+                                    fixed_columns={'headers': True, 'data': 1},                                    
+                                    style_data={'backgroundColor': 'black', 'color': 'white'},                                    
+                                    # style_cell={'textAlign': 'center','height': 'auto', 'width': '100px', 
+                                    #             'maxWidth': '200px','whiteSpace': 'normal'},                                                                        
+                                    style_header={'backgroundColor': 'rgb(30,30,30)',
+                                                    'color': 'white', 'fontWeight': 'bold'}
+                                    )
+
 def build_tab_1():
+    dd_plt_kwargs = {"title_text" : f"Drawdowns Plot for {sel_symbol}"}
+    uw_plt_kwargs = {"title_text" : f"Underwater Plot for {sel_symbol}"}
     return [
         dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
-                 dbc.Col([time_periods_tab1], style={'width': '50%', 'display': 'inline-block', 'float': 'left'})] 
+                 dbc.Col([time_periods_tab1], style={'width': '50%', 'display': 'inline-block'})] 
                     ),        
         html.Div(children = [
             dcc.Graph(id = 'pf-orders', figure = pf[sel_symbol].resample(sel_period).plot()),
-            dcc.Graph(id = 'drawdown-plot', figure =  pf[sel_symbol].drawdowns.plot(**{"title_text" : f"Drawdowns Plot for {sel_symbol}"})),
-            dcc.Graph(id = 'underwater-plot', figure =  pf[sel_symbol].plot_underwater(**{"title_text" : f"Underwater Plot for {sel_symbol}"}))        
-        ])
+            dcc.Graph(id = 'drawdown-plot', figure =  pf[sel_symbol].drawdowns.plot(**dd_plt_kwargs)),
+            dcc.Graph(id = 'underwater-plot', figure =  pf[sel_symbol].plot_underwater(**uw_plt_kwargs)),
+            html.Hr(style = {'borderColor':'white'}),
+            html.Div(children = [html.H5('Portfolio Simulation Statistics', 
+                                          style={"font-weight":"bold",'display' : 'flex','justifyContent': 'center'}),
+                                stats_datatable ])
+                ])
         ]
 
 ## Add Markdown table for Simulation results
@@ -171,8 +200,7 @@ date_picker_range = html.Div([
 # ------------------------------------------------------------
 @app.callback(
     Output('ohlcv-plot', 'figure'),
-    [
-     Input(component_id = 'date-picker', component_property = 'start_date'),
+    [Input(component_id = 'date-picker', component_property = 'start_date'),
      Input(component_id = 'date-picker', component_property = 'end_date'),
      Input('select-symbol-dropdown', 'value'),
      Input('select-resample-dropdown', 'value')]
@@ -212,7 +240,7 @@ def main_chart(start_date, end_date, symbol, time_period):
      ## Plots Long Entries / Exits and Short Entries / Exits
     pf[symbol][start_date:end_date].plot_trade_signals(fig=fig, plot_close=False, plot_positions="lines")
 
-    # bb_bands[symbol].plot(fig=fig, **kwargs1 ,
+    # bb_bands[symbol].plot(fig=fig,
     #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_Price_Lower', connectgaps=True, line = bb_line_style), 
     #             upperband_trace_kwargs=dict(fill=None, name = 'BB_Price_Upper', connectgaps=True, line = bb_line_style),
     #             middleband_trace_kwargs=dict(fill=None, name = 'BB_Price_Middle', connectgaps=True))    
