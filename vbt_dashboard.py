@@ -11,7 +11,6 @@ from dash.dependencies import Input, Output
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
 resample_time_periods = ['15m', '4h']
-# mtf_data = vbt.Config.load('data/mtf_data.pickle') ## Multi Time-Frame data with entries and exits
 pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
 symbols = list(pf.trade_history['Column'].unique())
 
@@ -60,7 +59,7 @@ app.config["suppress_callback_exceptions"] = True
 
 ## Global VBT Plot Settings
 vbt.settings.set_theme("dark")
-vbt.settings['plotting']['layout']['width'] = 1200
+vbt.settings['plotting']['layout']['width'] = 1280
 
 def build_banner():
     return html.Div(
@@ -76,7 +75,7 @@ def build_banner():
             ),
             html.Div(
                 id="banner-logo",
-                children=[html.A(html.Img(id="logo",src=app.get_asset_url("plotly_logo.png")),href="https://vectorbt.pro"),
+                children=[html.A(html.Img(id="logo",src=app.get_asset_url("vbt_logo.png")),href="https://vectorbt.pro"),
                 ],
             ),
         ],
@@ -101,7 +100,7 @@ symbols_dropdown = html.Div([
                         html.P('Select Symbol:',style={"font-weight":"bold"}),
                         dcc.Dropdown(id = 'select-symbol-dropdown',
                         options = list({'label': symbol, 'value': symbol} for symbol in symbols),
-                        style = {'width':'40%','text-align': 'left'},
+                        style = {'width':'60%','text-align': 'left'},
                         value = sel_symbol, optionHeight = 25)
                         ])
 
@@ -109,7 +108,7 @@ time_periods_tab1 = html.Div([
                         html.P('(Resample) Time period:',style={"font-weight":"bold"}),
                         dcc.Dropdown(id = 'select-resample-dropdown',
                         options = list({'label': period, 'value': period} for period in ['15m','4h', '1d']),
-                        style = {'width':'40%','text-align': 'left'},
+                        style = {'width':'60%','text-align': 'left'},
                         value = '1d', optionHeight = 25)
                         ])       
 
@@ -117,14 +116,14 @@ time_periods_tab2 = html.Div([
                         html.P('Chart TimeFrame:',style={"font-weight":"bold"}),
                         dcc.Dropdown(id = 'select-resample-dropdown',
                         options = list({'label': period, 'value': period} for period in resample_time_periods),
-                        style = {'width':'40%','text-align': 'left'},
+                        style = {'width':'60%','text-align': 'left'},
                         value = sel_period, optionHeight = 25)
                         ])   
 
 def build_tab_1():
     return [
-        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods_tab1])],
-                    # style = {'display' : 'inline','align': 'right'} 
+        dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
+                 dbc.Col([time_periods_tab1], style={'width': '50%', 'display': 'inline-block', 'float': 'left'})] 
                     ),        
         html.Div(children = [
             dcc.Graph(id = 'pf-orders', figure = pf[sel_symbol].resample(sel_period).plot()),
@@ -132,6 +131,8 @@ def build_tab_1():
             dcc.Graph(id = 'underwater-plot', figure =  pf[sel_symbol].plot_underwater(**{"title_text" : f"Underwater Plot for {sel_symbol}"}))        
         ])
         ]
+
+## Add Markdown table for Simulation results
 
 # callback for Tab 1
 # ------------------------------------------------------------
@@ -152,6 +153,7 @@ def render_symbol_charts(symbol, period):
     return [order_plot, drawdown_plot, underwater_plt_kwargs]
 
 date_picker_range = html.Div([
+    html.Label("Select Date Range:"),
     dcc.DatePickerRange(
         id='date-picker',
         clearable=True,
@@ -181,19 +183,18 @@ def main_chart(start_date, end_date, symbol, time_period):
     start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y.%m.%d')
     end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y.%m.%d')
     bb_line_style = dict(color="white",width=1, dash="dot")
-    kwargs1 = { "title_font_size" : 18,
-               "height" : 720,
-               "legend" : dict(yanchor="top",y=0.99, xanchor="left",x= 0.1)}
+    fig_kwargs = { "title_font_size" : 18, 'title_x': 0.5, "height" : 720,
+                  "legend" : dict(yanchor="top",y=0.99, xanchor="left",x= 0.1)}
     
 
     # print("START DATE:", start_date, '||', "END DATE:", end_date)
     if time_period == '4h':
-        kwargs1["title_text"] = f"H4 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
+        fig_kwargs["title_text"] = f"H4 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
         df_ohlc = pd.concat([h4_open[symbol], h4_high[symbol], h4_low[symbol], h4_close[symbol] ], 
                             axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
         bb_bands = h4_bbands_price
     elif time_period == '15m':
-        kwargs1["title_text"] = f"m15 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
+        fig_kwargs["title_text"] = f"m15 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
         df_ohlc = pd.concat([m15_open[symbol], m15_high[symbol], m15_low[symbol], m15_close[symbol] ], 
                             axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
         bb_bands = m15_bbands_price
@@ -207,7 +208,7 @@ def main_chart(start_date, end_date, symbol, time_period):
     # Store dates with missing values
     dt_breaks = [d for d in dt_obs if d not in dt_obs_dropped]
 
-    fig =  df_slice.vbt.ohlcv.plot(**kwargs1) 
+    fig =  df_slice.vbt.ohlcv.plot(**fig_kwargs) 
      ## Plots Long Entries / Exits and Short Entries / Exits
     pf[symbol][start_date:end_date].plot_trade_signals(fig=fig, plot_close=False, plot_positions="lines")
 
@@ -225,12 +226,12 @@ def main_chart(start_date, end_date, symbol, time_period):
     return fig
 
 
-def rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits):
+def rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits, fig_kwargs):
     start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y.%m.%d')
     end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y.%m.%d')
     rsi = rsi[start_date : end_date]
     bb_rsi = bb_rsi[start_date : end_date]
-    fig = rsi.rename("RSI").vbt.plot(trace_kwargs = dict(connectgaps=True))
+    fig = rsi.rename("RSI").vbt.plot(trace_kwargs = dict(connectgaps=True), **fig_kwargs)
     bb_line_style = dict(color="white",width=1, dash="dot")
     # bb_rsi.plot(fig=fig,
     #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Lower', connectgaps=True,line = bb_line_style), 
@@ -251,7 +252,7 @@ def rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits):
     return fig
 
 @app.callback(
-    [Output('indicator1', 'figure'),Output('rsi_label', 'children')],
+    Output('indicator1', 'figure'),
     [Input(component_id = 'date-picker', component_property = 'start_date'),
      Input(component_id = 'date-picker', component_property = 'end_date'),
      Input('select-symbol-dropdown', 'value'),
@@ -268,39 +269,45 @@ def contruct_rsi(start_date, end_date, symbol, time_period):
         bb_rsi = h4_bbands_rsi[symbol]
         entries = clean_entries_h4[symbol]
         exits = clean_exits_h4[symbol]
-    fig = rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits)
-    rsi_title = f"RSI plot for {symbol} on {time_period} time period"
-    return fig, rsi_title
+    fig_kwargs = {"title_text" : f"RSI plot for {symbol} on {time_period} time period",'title_x': 0.5}
+    fig = rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits, fig_kwargs)
+    return fig
 
-def build_tab_2(symbols_dropdown, time_periods_tab2):
+def build_tab_2():
     return [
-        dbc.Row([dbc.Col([symbols_dropdown]), dbc.Col([time_periods_tab2])],
-            style = {'display' : 'inline','align': 'right'} 
-            ),
+        html.Br(),
+        dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
+                dbc.Col([time_periods_tab2],style={'width': '50%', 'display': 'inline-block', 'float': 'left'})]),
         html.Br(),
         date_picker_range,
         html.Br(),
         html.Div(children = [ dcc.Graph(id = 'ohlcv-plot') ] ),
-        html.Div([dcc.Dropdown(id = 'indicator-resampler',
+        html.Div([
+                html.Label("RSI Time-Period:"),
+                dcc.Dropdown(id = 'indicator-resampler', style = {'width':'40%','text-align': 'left'},
                 options = list({'label': period, 'value': period} for period in resample_time_periods),
-                style = {'width':'40%','text-align': 'left'},
                 value = "15m", optionHeight = 25)
                 ]),
         html.Div(children = [html.P(id = 'rsi_label',style={"font-weight":"bold"}),
                              dcc.Graph(id = 'indicator1') ])
     ]
 
-@app.callback(
-    Output("app-content", "children"),
-    [Input("app-tabs", "value")]
-)
+dummy_content = html.Div([
+    html.Div([html.P("Column 1")], style={'width': '33%', 'display': 'inline-block' }),
+    html.Div([html.P("Column 2")], style={'width': '33%', 'display': 'inline-block', 'float': 'right'})
+    ])
+
+@app.callback(Output("app-content", "children"), Input("app-tabs", "value"))
+
 def render_tab_content(tab):
     if tab == "tab1":
-        # return html.Div([html.P("Welcome to Tab1")])        
-        return build_tab_1()
+        return build_tab_1()        
+        # return html.Div(children = [html.P(f"Welcome to {tab.upper()}"), html.Br(), dummy_content])       
+
     elif tab == "tab2":
-        # return html.Div([html.P("Welcome to Tab2")])
-        return build_tab_2(symbols_dropdown, time_periods_tab2)
+        return build_tab_2()        
+        # return html.Div(children = [html.P(f"Welcome to {tab.upper()}"), html.Br(), dummy_content])   
+
 
 
 app.layout = html.Div(
