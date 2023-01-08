@@ -313,7 +313,7 @@ def contruct_rsi(start_date, end_date, symbol, time_period):
         bb_rsi = h4_bbands_rsi[symbol]
         entries = clean_entries_h4[symbol]
         exits = clean_exits_h4[symbol]
-    fig_kwargs = {"title_text" : f"RSI plot for {symbol} on {time_period} time period",'title_x': 0.5}
+    fig_kwargs = {"title_text" : f"{time_period} RSI plot - {symbol}",'title_x': 0.05}
     fig = rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits, fig_kwargs)
     return fig
 
@@ -321,7 +321,7 @@ def build_tab_2():
     return [
         html.Br(),
         dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
-                dbc.Col([time_periods_tab2],style={'width': '50%', 'display': 'inline-block', 'float': 'left'})]),
+                dbc.Col([time_periods_tab2],style={'width': '50%', 'display': 'inline-block'})]),
         html.Br(),
         date_picker_range,
         html.Br(),
