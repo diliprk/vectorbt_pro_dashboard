@@ -10,11 +10,12 @@ from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
-price_data = vbt.Config.load('data/price_data.pickle')
-vbt_indicators_data = vbt.Config.load('data/vbt_indicators_data.pickle')
-pandas_indicators_data = vbt.Config.load('data/pandas_indicator_data.pickle')
+price_data = vbt.Config.load('data/price_data.pickle') ## OHLCV - MTF Price Data
 entries_exits_data = vbt.Config.load('data/entries_exits_data.pickle')
 pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
+# vbt_indicators_data = vbt.Config.load('data/vbt_indicators_data.pickle')
+# pandas_indicators_data = vbt.Config.load('data/pandas_indicator_data.pickle')
+
 symbols = list(pf.trade_history['Column'].unique())
 # print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
 
@@ -23,7 +24,7 @@ stats_df.loc['Avg Winning Trade Duration'] = [x.floor('s') for x in stats_df.ilo
 stats_df.loc['Avg Losing Trade Duration'] = [x.floor('s') for x in stats_df.iloc[22]]
 stats_df = stats_df.reset_index().astype(str)
 stats_df.rename(inplace = True, columns = {'agg_stats':'WholePortfolio','index' : 'Metrics'})      
-print(stats_df)
+# print(stats_df)
 
 resample_time_periods = ['15m', '4h']
 sel_symbol = symbols[0]
@@ -44,19 +45,34 @@ h4_close = h4_data.get('Close')
 h4_high  = h4_data.get('High')
 h4_low   = h4_data.get('Low')
 
-m15_bbands_price = vbt_indicators_data["m15_price_bbands"]
-h4_bbands_price  = vbt_indicators_data["h4_price_bbands"]
-
-m15_rsi = pandas_indicators_data["m15_rsi"]
-h4_rsi = pandas_indicators_data["h4_rsi"]
-m15_bbands_rsi = vbt_indicators_data["m15_rsi_bbands"]
-h4_bbands_rsi  = vbt_indicators_data["h4_rsi_bbands"]
+# m15_rsi = pandas_indicators_data["m15_rsi"]
+# m15_bbands_price = vbt_indicators_data["m15_price_bbands"]
+# m15_bbands_rsi = vbt_indicators_data["m15_rsi_bbands"]
+# h4_rsi = pandas_indicators_data["h4_rsi"]
+# h4_bbands_price  = vbt_indicators_data["h4_price_bbands"]
+# h4_bbands_rsi  = vbt_indicators_data["h4_rsi_bbands"]
 
 clean_entries = entries_exits_data['clean_entries']
 clean_exits = entries_exits_data['clean_exits']
 clean_entries_h4 = clean_entries.vbt.resample_apply("4h", "any", wrap_kwargs=dict(dtype=bool))
 clean_exits_h4 = clean_exits.vbt.resample_apply("4h", "any", wrap_kwargs=dict(dtype=bool))
 # endregion
+
+# region - Re-Generate Indicator data
+
+rsi_period = 21
+
+## 15m indicators
+m15_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(m15_close, skipna=True).real.ffill()
+m15_bbands_price = vbt.talib("BBANDS").run(m15_close, skipna=True)
+m15_bbands_rsi = vbt.talib("BBANDS").run(m15_rsi, skipna=True)
+
+## h4 indicators
+h4_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(h4_close, skipna=True).real.ffill()
+h4_bbands_price = vbt.talib("BBANDS").run(h4_close, skipna=True)
+h4_bbands_rsi = vbt.talib("BBANDS").run(h4_rsi, skipna=True)
+# endregion
+
 
 ## GLOBAL VARIABLES
 app = Dash(__name__, meta_tags=[{"name": "viewport", "contentZ": "width=device-width, initial-scale=1"}])
@@ -92,7 +108,7 @@ def build_banner():
 
 def build_tabs():
     return html.Div(id="tabs", className="tabs", 
-    children=[dcc.Tabs(id="app-tabs",value="tab1",className="custom-tabs",
+    children=[dcc.Tabs(id="app-tabs",value="tab2",className="custom-tabs",
              children=[dcc.Tab(id="sim-res-tab", label="Portfolio Simulation", value="tab1",className="custom-tab",
                         selected_className="custom-tab--selected" ),
                        dcc.Tab(id="strategy-viz-tab", label="Strategy Visualizer", value="tab2", className="custom-tab",
@@ -220,12 +236,12 @@ def main_chart(start_date, end_date, symbol, time_period):
         fig_kwargs["title_text"] = f"H4 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
         df_ohlc = pd.concat([h4_open[symbol], h4_high[symbol], h4_low[symbol], h4_close[symbol] ], 
                             axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
-        bb_bands = h4_bbands_price
+        bb_bands = h4_bbands_price[start_date : end_date]
     elif time_period == '15m':
         fig_kwargs["title_text"] = f"m15 OHLCV with BBands for {symbol} from {start_date_txt} to {end_date_txt}"
         df_ohlc = pd.concat([m15_open[symbol], m15_high[symbol], m15_low[symbol], m15_close[symbol] ], 
                             axis =  1, keys= ['Open', 'High', 'Low', 'Close'])
-        bb_bands = m15_bbands_price
+        bb_bands = m15_bbands_price[start_date : end_date]
     ## Filter Data according to date slice
     df_slice = df_ohlc[["Open", "High", "Low", "Close"]][start_date : end_date]
     ## Retrieve datetime index of rows where price data is NULL
@@ -240,10 +256,10 @@ def main_chart(start_date, end_date, symbol, time_period):
      ## Plots Long Entries / Exits and Short Entries / Exits
     pf[symbol][start_date:end_date].plot_trade_signals(fig=fig, plot_close=False, plot_positions="lines")
 
-    # bb_bands[symbol].plot(fig=fig,
-    #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_Price_Lower', connectgaps=True, line = bb_line_style), 
-    #             upperband_trace_kwargs=dict(fill=None, name = 'BB_Price_Upper', connectgaps=True, line = bb_line_style),
-    #             middleband_trace_kwargs=dict(fill=None, name = 'BB_Price_Middle', connectgaps=True))    
+    bb_bands[symbol].plot(fig=fig,
+                lowerband_trace_kwargs=dict(fill=None, name = 'BB_Price_Lower', connectgaps=True, line = bb_line_style), 
+                upperband_trace_kwargs=dict(fill=None, name = 'BB_Price_Upper', connectgaps=True, line = bb_line_style),
+                middleband_trace_kwargs=dict(fill=None, name = 'BB_Price_Middle', connectgaps=True))    
 
 
     
@@ -261,10 +277,10 @@ def rsi_indicator(start_date, end_date, rsi, bb_rsi, entries, exits, fig_kwargs)
     bb_rsi = bb_rsi[start_date : end_date]
     fig = rsi.rename("RSI").vbt.plot(trace_kwargs = dict(connectgaps=True), **fig_kwargs)
     bb_line_style = dict(color="white",width=1, dash="dot")
-    # bb_rsi.plot(fig=fig,
-    #             lowerband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Lower', connectgaps=True,line = bb_line_style), 
-    #             upperband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Upper', connectgaps=True,line = bb_line_style),
-    #             middleband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Middle', connectgaps=True, visible = False))  
+    bb_rsi.plot(fig=fig,
+                lowerband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Lower', connectgaps=True,line = bb_line_style), 
+                upperband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Upper', connectgaps=True,line = bb_line_style),
+                middleband_trace_kwargs=dict(fill=None, name = 'BB_RSI_Middle', connectgaps=True, visible = False))  
     
     if (entries is not None) & (exits is not None):
         ## Slice Entries and Exits
