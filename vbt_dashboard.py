@@ -10,11 +10,10 @@ from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
-price_data = vbt.Config.load('data/price_data.pickle') ## OHLCV - MTF Price Data
-entries_exits_data = vbt.Config.load('data/entries_exits_data.pickle')
 pf = vbt.Portfolio.load('data/pf_sim.pickle') ## Portfolio Simulation Results
-# vbt_indicators_data = vbt.Config.load('data/vbt_indicators_data.pickle')
-# pandas_indicators_data = vbt.Config.load('data/pandas_indicator_data.pickle')
+price_data = vbt.load('data/price_data.pickle') ## OHLCV - MTF Price Data
+indicators_data = vbt.load('data/indicators_data.pickle') ## Indicators Data
+entries_exits_data = vbt.load('data/entries_exits_data.pickle') ## Entries & Exits Data
 
 symbols = list(pf.trade_history['Column'].unique())
 # print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
@@ -45,12 +44,12 @@ h4_close = h4_data.get('Close')
 h4_high  = h4_data.get('High')
 h4_low   = h4_data.get('Low')
 
-# m15_rsi = pandas_indicators_data["m15_rsi"]
-# m15_bbands_price = vbt_indicators_data["m15_price_bbands"]
-# m15_bbands_rsi = vbt_indicators_data["m15_rsi_bbands"]
-# h4_rsi = pandas_indicators_data["h4_rsi"]
-# h4_bbands_price  = vbt_indicators_data["h4_price_bbands"]
-# h4_bbands_rsi  = vbt_indicators_data["h4_rsi_bbands"]
+m15_rsi = indicators_data["m15_rsi"]
+m15_bbands_price = indicators_data["m15_price_bbands"]
+m15_bbands_rsi = indicators_data["m15_rsi_bbands"]
+h4_rsi = indicators_data["h4_rsi"]
+h4_bbands_price  = indicators_data["h4_price_bbands"]
+h4_bbands_rsi  = indicators_data["h4_rsi_bbands"]
 
 clean_entries = entries_exits_data['clean_entries']
 clean_exits = entries_exits_data['clean_exits']
@@ -60,17 +59,15 @@ clean_exits_h4 = clean_exits.vbt.resample_apply("4h", "any", wrap_kwargs=dict(dt
 
 # region - Re-Generate Indicator data
 
-rsi_period = 21
+# rsi_period = 21
 
-## 15m indicators
-m15_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(m15_close, skipna=True).real.ffill()
-m15_bbands_price = vbt.talib("BBANDS").run(m15_close, skipna=True)
-m15_bbands_rsi = vbt.talib("BBANDS").run(m15_rsi, skipna=True)
+# m15_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(m15_close, skipna=True).real.ffill()
+# m15_bbands_price = vbt.talib("BBANDS").run(m15_close, skipna=True)
+# m15_bbands_rsi = vbt.talib("BBANDS").run(m15_rsi, skipna=True)
 
-## h4 indicators
-h4_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(h4_close, skipna=True).real.ffill()
-h4_bbands_price = vbt.talib("BBANDS").run(h4_close, skipna=True)
-h4_bbands_rsi = vbt.talib("BBANDS").run(h4_rsi, skipna=True)
+# h4_rsi = vbt.talib("RSI", timeperiod = rsi_period).run(h4_close, skipna=True).real.ffill()
+# h4_bbands_price = vbt.talib("BBANDS").run(h4_close, skipna=True)
+# h4_bbands_rsi = vbt.talib("BBANDS").run(h4_rsi, skipna=True)
 # endregion
 
 
