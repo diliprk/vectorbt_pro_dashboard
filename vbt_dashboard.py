@@ -9,20 +9,32 @@ from dash.dependencies import Input, Output
 
 # region - LOAD VBT PICKLE FILE OBJECTS
 ## Load pickle files of saved results from VBT
-pf = vbt.Portfolio.load('data/pf_sim_discrete.pickle') ## Portfolio Simulation Results
 price_data = vbt.load('data/price_data.pickle') ## OHLCV - MTF Price Data
 indicators_data = vbt.load('data/indicators_data.pickle') ## Indicators Data
 entries_exits_data = vbt.load('data/entries_exits_data.pickle') ## Entries & Exits Data
 
+# region - Load 3 types of Portfolio simulation results
+## Discrete Portfolio Simulation Results
+pf = vbt.Portfolio.load('data/pf_sim_discrete.pickle') 
 symbols = list(pf.trade_history['Column'].unique())
-# print(type(vbt_indicators_data), vbt_indicators_data["m15_rsi_bbands"]["GBPUSD"].lowerband)
+
+## Grouped Portfolio Simulation Results - `pf_sim_grouped.pickle`
+# pf = vbt.Portfolio.load('data/pf_sim_grouped.pickle') 
+# symbols = ['USDPairs', 'NonUSDPairs']
 
 stats_df = pd.concat([pf[symbol].stats() for symbol in symbols], axis = 1)
 stats_df.loc['Avg Winning Trade Duration'] = [x.floor('s') for x in stats_df.iloc[21]]
 stats_df.loc['Avg Losing Trade Duration'] = [x.floor('s') for x in stats_df.iloc[22]]
 stats_df = stats_df.reset_index().astype(str)
-stats_df.rename(inplace = True, columns = {'agg_stats':'WholePortfolio','index' : 'Metrics'})      
+stats_df.rename(inplace = True, columns = {'agg_stats':'Agg_Stats','index' : 'Metrics'})      
 # print(stats_df)
+
+## Unified Portfolio Simulation Results - 'pf_sim_single.pickle'
+# pf = vbt.Portfolio.load('data/pf_sim_single.pickle') 
+# stats_df = pd.DataFrame(pf.stats()).reset_index() ## When using Unified Portfolio simulation - `pf_sim_single.pickle`
+# stats_df.rename(inplace = True, columns = {'index' : 'Metrics' })  
+# symbols = ['Grouped Simulation']
+# endregion
 
 resample_time_periods = ['15m', '4h']
 sel_symbol = symbols[0]
@@ -91,6 +103,7 @@ symbols_dropdown = html.Div([
                         value = sel_symbol, optionHeight = 25)
                         ])
 
+
 time_periods_tab1 = html.Div([
                         html.P('(Resample) Time period:',style={"font-weight":"bold"}),
                         dcc.Dropdown(id = 'select-resample-dropdown',
@@ -149,7 +162,7 @@ def build_tabs():
     Navigation Tabs in the header
     """
     return html.Div(id="tabs", className="tabs", 
-    children=[dcc.Tabs(id="app-tabs",value="tab2",className="custom-tabs",
+    children=[dcc.Tabs(id="app-tabs",value="tab1",className="custom-tabs",
              children=[dcc.Tab(id="sim-res-tab", label="Portfolio Simulation", value="tab1",className="custom-tab",
                         selected_className="custom-tab--selected" ),
                        dcc.Tab(id="strategy-viz-tab", label="Strategy Visualizer", value="tab2", className="custom-tab",
@@ -165,20 +178,35 @@ def build_tab_1():
     """Page elements for the Portfolio Simulation Tab"""
     dd_plt_kwargs = {"title_text" : f"Drawdowns Plot for {sel_symbol}"}
     uw_plt_kwargs = {"title_text" : f"Underwater Plot for {sel_symbol}"}
-    return [
-        dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
-                 dbc.Col([time_periods_tab1], style={'width': '50%', 'display': 'inline-block'})] 
+    if sel_symbol == "Grouped Simulation":
+        ## No need for Dropdown list selectors when presenting grouped simulation results
+        return [      
+            html.Div(children = [
+                dcc.Graph(id = 'pf-orders', figure = pf.plot()),
+                dcc.Graph(id = 'drawdown-plot', figure =  pf.drawdowns.plot(**dd_plt_kwargs)),
+                dcc.Graph(id = 'underwater-plot', figure =  pf.plot_underwater(**uw_plt_kwargs)),
+                html.Hr(style = {'borderColor':'white'}),
+                html.Div(children = [html.H5('Portfolio Simulation Statistics', 
+                                            style={"font-weight":"bold",'display' : 'flex','justifyContent': 'center'}),
+                                    stats_datatable ])
+                    ])
+            ]     
+    else:        
+        return [
+            dbc.Row([dbc.Col([symbols_dropdown],style={'width': '50%', 'display': 'inline-block'}), 
+                    dbc.Col([time_periods_tab1], style={'width': '50%', 'display': 'inline-block'})] 
                     ),        
-        html.Div(children = [
-            dcc.Graph(id = 'pf-orders', figure = pf[sel_symbol].resample(sel_period).plot()),
-            dcc.Graph(id = 'drawdown-plot', figure =  pf[sel_symbol].drawdowns.plot(**dd_plt_kwargs)),
-            dcc.Graph(id = 'underwater-plot', figure =  pf[sel_symbol].plot_underwater(**uw_plt_kwargs)),
-            html.Hr(style = {'borderColor':'white'}),
-            html.Div(children = [html.H5('Portfolio Simulation Statistics', 
-                                          style={"font-weight":"bold",'display' : 'flex','justifyContent': 'center'}),
-                                stats_datatable ])
-                ])
-        ]
+            html.Div(children = [
+                dcc.Graph(id = 'pf-orders', figure = pf[sel_symbol].resample(sel_period).plot()),
+                dcc.Graph(id = 'drawdown-plot', figure =  pf[sel_symbol].drawdowns.plot(**dd_plt_kwargs)),
+                dcc.Graph(id = 'underwater-plot', figure =  pf[sel_symbol].plot_underwater(**uw_plt_kwargs)),
+                html.Hr(style = {'borderColor':'white'}),
+                html.Div(children = [html.H5('Portfolio Simulation Statistics', 
+                                            style={"font-weight":"bold",'display' : 'flex','justifyContent': 'center'}),
+                                    stats_datatable ])
+                    ])
+            ]
+        
 
 def build_tab_2():
     """Page elements for the Strategy Visualizer Tab"""    
