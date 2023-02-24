@@ -6,3 +6,8 @@ To Generate the .pickle files (to be placed in the `data` folder, please follow 
 
 ## YouTube Video Demo of this Dashboard
 [![YouTube Video](http://img.youtube.com/vi/Mek2Q6JZwTw/0.jpg)](http://www.youtube.com/watch?v=Mek2Q6JZwTw)
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=diliprk/vectorbt_pro_dashboard&type=Date)](https://star-history.com/#diliprk/vectorbt_pro_dashboard&Date)
